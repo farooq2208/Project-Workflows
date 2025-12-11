@@ -1,0 +1,1109 @@
+{
+  "name": "Medical Clinic Patient Follow-Up Automation Engine (Corrected)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "5a95da9e-b584-4995-8c05-fc7f0ff10f4b",
+      "name": "Daily Reminder Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1776,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "followups",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "due_date",
+              "keyValue": "={{ (new Date()).toISOString().split('T')[0] }}"
+            },
+            {
+              "keyName": "sent",
+              "keyValue": false
+            },
+            {
+              "keyName": "status",
+              "keyValue": "pending"
+            }
+          ]
+        }
+      },
+      "id": "66188512-db91-4c92-96e6-2e216b05f3ac",
+      "name": "Query Due Follow-Ups",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1488,
+        1040
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $items('Query Due Follow-Ups').length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1419c638-19fa-4a2f-be55-71a06a90458d",
+      "name": "Any Follow-Ups Due?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "followup_id",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "id": "856b4102-5558-48d1-b2b8-8e331a32357a",
+      "name": "Split Follow-Ups",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -944,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "patients",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $json.patient_id }}"
+            }
+          ]
+        }
+      },
+      "id": "574cf08b-4bea-415d-901b-9b073eed9767",
+      "name": "Get Patient Details",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -736,
+        1040
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Write a short, friendly medical appointment follow-up reminder. Include patient name, diagnosis, doctor name, visit date, and a confirmation request. Tone: Professional and caring.\nPatient: {{ $json.patient_name }}\nDiagnosis: {{ $json.diagnosis }}\nDoctor: {{ $json.doctor_name }}\nVisit Date: {{ $json.visit_date }}\nReturn only message text."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9ff55f7b-8a1e-47e2-83c5-98184a9e7661",
+      "name": "Generate Reminder Message",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        1040
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "pDFcfP5yvzPAuy68",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "subject": "Appointment reminder — {{ $json.patient_name }}",
+        "options": {}
+      },
+      "id": "dc2999b1-a056-44ef-be24-e03d6c5fb923",
+      "name": "Send Reminder Email (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        1040
+      ],
+      "webhookId": "f3726fd6-c33d-46be-a93d-d4e7c47f4353",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jhqSTdUguQruXeFP",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "followups",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "followup_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.followup_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "sent",
+              "fieldValue": "true"
+            },
+            {
+              "fieldId": "sent_method",
+              "fieldValue": "email"
+            },
+            {
+              "fieldId": "sent_at",
+              "fieldValue": "={{ (new Date()).toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "08519c3f-7f65-4558-8c70-c728cea6900b",
+      "name": "Mark Follow-Up as Sent",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        1040
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "audit_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "action",
+              "fieldValue": "reminder_sent"
+            },
+            {
+              "fieldId": "actor",
+              "fieldValue": "system"
+            },
+            {
+              "fieldId": "details",
+              "fieldValue": "={{ JSON.stringify({ followup_id: $json.followup_id, patient_id: $json.patient_id, method: 'email' }) }}"
+            }
+          ]
+        }
+      },
+      "id": "b9be8c78-9398-4b1c-8abc-1a4d7369bd6c",
+      "name": "Log Reminder Sent",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        192,
+        1040
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "patient-reply",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2224,
+        336
+      ],
+      "id": "ef3b0a8e-80ab-4ecf-b770-5cb19d2043a6",
+      "name": "Patient Reply Webhook",
+      "webhookId": "a451fd9c-66e5-4ae0-954d-a8e24a181432"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "patients",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "phone",
+              "keyValue": "={{ $json.body.phone || $json.body.from || $json.body.from_number }}"
+            }
+          ]
+        }
+      },
+      "id": "a8fe054c-9279-4555-83f4-b910742a817b",
+      "name": "Find Patient by Phone",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        336
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $items('Find Patient by Phone').length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "93dd6df0-850d-4e62-9725-373629db16e2",
+      "name": "Patient Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1744,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Classify the patient reply into one of the following: [\"yes\", \"no\", \"reschedule\", \"unknown\"]. Return only one word. Message: {{ $json.body.message || $json.body.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1d4c2240-eb91-41db-b6a2-a720108b79c6",
+      "name": "Classify Reply",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1488,
+        320
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "pDFcfP5yvzPAuy68",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/* Normalize classifier output to a single token: yes|no|reschedule|unknown */\nconst txt = $json.text || ($json.content && $json.content.parts && $json.content.parts[0] && $json.content.parts[0].text) || $json.message || '';\nconst lower = txt.toString().toLowerCase();\nlet reply = 'unknown';\nif (lower.includes('yes')) reply = 'yes';\nelse if (lower.includes('no')) reply = 'no';\nelse if (lower.includes('resched')) reply = 'reschedule';\nreturn [{ json: { reply } }];"
+      },
+      "id": "fc6142cb-7efe-4e77-90f0-a004e615edf7",
+      "name": "Normalize Classifier Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1184,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "id-1",
+                    "leftValue": "={{ $json.reply === 'yes' }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "yes"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "id-2",
+                    "leftValue": "={{ $json.reply === 'no' }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "id-3",
+                    "leftValue": "={{ $json.reply === 'reschedule' }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "be08f54a-0385-41d7-a5b7-895142eeb771",
+      "name": "Route by Reply Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -896,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "followups",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "patient_id",
+              "condition": "eq",
+              "keyValue": "={{ $items('Find Patient by Phone')[0].json.id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pending"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "done"
+            },
+            {
+              "fieldId": "response",
+              "fieldValue": "={{ JSON.stringify({ reply: 'yes', timestamp: new Date().toISOString() }) }}"
+            }
+          ]
+        }
+      },
+      "id": "96ba98fa-f003-4a51-8fde-85ad8569f194",
+      "name": "Update Status - Done",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        144
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "followups",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "patient_id",
+              "condition": "eq",
+              "keyValue": "={{ $items('Find Patient by Phone')[0].json.id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pending"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "missed"
+            },
+            {
+              "fieldId": "response",
+              "fieldValue": "={{ JSON.stringify({ reply: 'no', timestamp: new Date().toISOString() }) }}"
+            }
+          ]
+        }
+      },
+      "id": "681d6f90-d194-473e-b513-4cb118f3ce24",
+      "name": "Update Status - Missed",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        336
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "followups",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "patient_id",
+              "condition": "eq",
+              "keyValue": "={{ $items('Find Patient by Phone')[0].json.id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pending"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "rescheduled"
+            },
+            {
+              "fieldId": "response",
+              "fieldValue": "={{ JSON.stringify({ reply: 'reschedule', timestamp: new Date().toISOString() }) }}"
+            }
+          ]
+        }
+      },
+      "id": "2cd4fc66-0453-45c7-8b70-2020473b4f4f",
+      "name": "Update Status - Rescheduled",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        528
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "audit_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "action",
+              "fieldValue": "patient_reply_processed"
+            },
+            {
+              "fieldId": "actor",
+              "fieldValue": "={{ $items('Find Patient by Phone')[0].json.id }}"
+            },
+            {
+              "fieldId": "details",
+              "fieldValue": "={{ JSON.stringify({ status: $json.status, response: $json.response }) }}"
+            }
+          ]
+        }
+      },
+      "id": "3845c49e-2054-4471-919f-8305699a6498",
+      "name": "Log Reply Action",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        784,
+        320
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: \"Reply processed successfully\" } }}",
+        "options": {}
+      },
+      "id": "8e9794d9-55a2-41da-b80f-8c0eb05ec543",
+      "name": "Respond to Reply Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 19
+            }
+          ]
+        }
+      },
+      "id": "ef61f1a7-c4ac-4412-b4c3-977ee16e712c",
+      "name": "Daily Summary Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1504,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "followups",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "due_date",
+              "keyValue": "={{ (new Date()).toISOString().split('T')[0] }}"
+            }
+          ]
+        }
+      },
+      "id": "141cfd21-f23b-41c5-911b-a621305c4b39",
+      "name": "Fetch Today Follow-Ups",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        1280
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const followups = $input.all();\nconst stats = { total: followups.length, completed: followups.filter(f => f.json.status === 'done').length, missed: followups.filter(f => f.json.status === 'missed').length, pending: followups.filter(f => f.json.status === 'pending').length, rescheduled: followups.filter(f => f.json.status === 'rescheduled').length };\nreturn [{ json: stats }];"
+      },
+      "id": "af5105d2-6bce-46c4-84cb-97dfb603f368",
+      "name": "Aggregate Summary Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1056,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-pro-preview-03-25",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-pro-preview-03-25"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Create a clean, professional daily follow-up report for the doctor. Summaries: Total due: {{ $json.total }}, Completed: {{ $json.completed }}, Missed: {{ $json.missed }}, Pending: {{ $json.pending }}, Rescheduled: {{ $json.rescheduled }}. Return in bullet format."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "04c7a5ed-6fe8-4e46-bfe4-a254c6e79e23",
+      "name": "Generate Summary Report",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        1280
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "pDFcfP5yvzPAuy68",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "subject": "Daily follow-up summary — {{ (new Date()).toISOString().split('T')[0] }}",
+        "options": {}
+      },
+      "id": "96c782bf-4223-48a1-ba05-58fff9b1c9bb",
+      "name": "Send Daily Summary (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        1280
+      ],
+      "webhookId": "2f1f8c29-9bbd-4d61-9941-62f761338ec3",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jhqSTdUguQruXeFP",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "audit_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "action",
+              "fieldValue": "daily_summary_sent"
+            },
+            {
+              "fieldId": "actor",
+              "fieldValue": "system"
+            },
+            {
+              "fieldId": "details",
+              "fieldValue": "={{ JSON.stringify({ date: (new Date()).toISOString().split('T')[0] }) }}"
+            }
+          ]
+        }
+      },
+      "id": "7a2768d2-3b93-4008-891c-ef4df5dbd4ec",
+      "name": "Log Summary Sent",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        1280
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "g99FaTjQx8amVKw6",
+          "name": "Supabase account Hafiz Ahmad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "af6d3533-5539-4d3c-80ec-ce9200929590",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        -1664,
+        784
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Reminder Schedule": {
+      "main": [
+        [
+          {
+            "node": "Query Due Follow-Ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Due Follow-Ups": {
+      "main": [
+        [
+          {
+            "node": "Any Follow-Ups Due?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Follow-Ups Due?": {
+      "main": [
+        [
+          {
+            "node": "Split Follow-Ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Follow-Ups": {
+      "main": [
+        [
+          {
+            "node": "Get Patient Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Patient Details": {
+      "main": [
+        [
+          {
+            "node": "Generate Reminder Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Reminder Message": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder Email (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reminder Email (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Mark Follow-Up as Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Follow-Up as Sent": {
+      "main": [
+        [
+          {
+            "node": "Log Reminder Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patient Reply Webhook": {
+      "main": [
+        [
+          {
+            "node": "Find Patient by Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Patient by Phone": {
+      "main": [
+        [
+          {
+            "node": "Patient Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patient Found?": {
+      "main": [
+        [
+          {
+            "node": "Classify Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Reply": {
+      "main": [
+        [
+          {
+            "node": "Normalize Classifier Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Classifier Output": {
+      "main": [
+        [
+          {
+            "node": "Route by Reply Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Reply Type": {
+      "main": [
+        [
+          {
+            "node": "Update Status - Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Status - Missed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Status - Rescheduled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - Done": {
+      "main": [
+        [
+          {
+            "node": "Log Reply Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - Missed": {
+      "main": [
+        [
+          {
+            "node": "Log Reply Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status - Rescheduled": {
+      "main": [
+        [
+          {
+            "node": "Log Reply Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Reply Action": {
+      "main": [
+        [
+          {
+            "node": "Respond to Reply Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Summary Schedule": {
+      "main": [
+        [
+          {
+            "node": "Fetch Today Follow-Ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Today Follow-Ups": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Summary Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Summary Stats": {
+      "main": [
+        [
+          {
+            "node": "Generate Summary Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Summary Report": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Summary (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Daily Summary (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Log Summary Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "250296d1-f507-4b18-b2cf-dbc3ecb9497d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d6d568813a88aea710aa5796ea28840c458ade99e5fe88b00dc7056afbfca8d0"
+  },
+  "id": "O8I9OHjPfV7sWNZi",
+  "tags": []
+}
